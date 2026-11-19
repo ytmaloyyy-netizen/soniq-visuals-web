@@ -1,162 +1,33 @@
 const $=id=>document.getElementById(id);
-const audio=$('audio');
-let audioCtx,source,splitter,leftAnalyser,rightAnalyser,mixAnalyser,mediaDest,recorder,chunks=[],previewFrame=0,recordFrame=0,recording=false;
-const fallback='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" rx="18" fill="#26384d"/><text x="50" y="63" text-anchor="middle" font-size="42" fill="white">♫</text></svg>');
-$('cover').src=fallback;
-function status(t){$('status').textContent=t}
-function syncText(){
-  $('title').textContent=$('titleInput').value||'Название трека';
-  $('artist').textContent=$('artistInput').value||'Исполнитель';
-}
-$('titleInput').addEventListener('input',syncText);
-$('artistInput').addEventListener('input',syncText);
-$('scale').addEventListener('input',e=>document.documentElement.style.setProperty('--island-scale',e.target.value/100));
-$('accent').addEventListener('input',e=>document.documentElement.style.setProperty('--accent',e.target.value));
-function toggleIsland(){
-  $('island').classList.toggle('expanded');
-}
-$('island').addEventListener('click',toggleIsland);
-$('island').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleIsland()}});
-$('audioFile').addEventListener('change',e=>{
-  const f=e.target.files[0];if(!f)return;
-  audio.src=URL.createObjectURL(f);
-  $('titleInput').value=f.name.replace(/\.[^.]+$/,'');syncText();
-  $('play').disabled=false;$('record').disabled=false;
-  status('Трек загружен. Можно прослушать и записать.');
-});
-$('coverFile').addEventListener('change',e=>{
-  const f=e.target.files[0];if(!f)return;
-  const r=new FileReader();r.onload=()=>{$('cover').src=r.result};r.readAsDataURL(f);
-});
-function setup(){
-  if(audioCtx)return;
-  audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-  source=audioCtx.createMediaElementSource(audio);
-  splitter=audioCtx.createChannelSplitter(2);
-  leftAnalyser=audioCtx.createAnalyser();rightAnalyser=audioCtx.createAnalyser();mixAnalyser=audioCtx.createAnalyser();
-  [leftAnalyser,rightAnalyser,mixAnalyser].forEach(a=>{a.fftSize=1024;a.smoothingTimeConstant=.72});
-  mediaDest=audioCtx.createMediaStreamDestination();
-  source.connect(splitter);splitter.connect(leftAnalyser,0);splitter.connect(rightAnalyser,1);
-  source.connect(mixAnalyser);source.connect(audioCtx.destination);source.connect(mediaDest);
-}
-$('play').onclick=async()=>{
-  setup();await audioCtx.resume();
-  if(audio.paused){await audio.play();$('play').textContent='Ⅱ Пауза';startPreview()}
-  else{audio.pause();$('play').textContent='▶ Прослушать'}
-};
-$('stop').onclick=()=>{audio.pause();audio.currentTime=0;$('play').textContent='▶ Прослушать'};
-audio.addEventListener('loadedmetadata',()=>{$('stop').disabled=false});
-audio.addEventListener('ended',()=>{$('play').textContent='▶ Прослушать'});
-function startPreview(){
-  cancelAnimationFrame(previewFrame);
-  const data=new Uint8Array(mixAnalyser.frequencyBinCount);
-  function tick(){
-    if(!audioCtx)return;
-    mixAnalyser.getByteFrequencyData(data);
-    document.querySelectorAll('.bars i').forEach((b,i)=>{b.style.height=(4+(data[i*9+2]/255)*29)+'px'});
-    previewFrame=requestAnimationFrame(tick);
-  }
-  tick();
-}
-function roundRect(ctx,x,y,w,h,r){
-  ctx.beginPath();
-  if(ctx.roundRect)ctx.roundRect(x,y,w,h,r);
-  else ctx.rect(x,y,w,h);
-}
-function wrapLines(ctx,text,maxWidth,maxLines){
-  const words=String(text||'').trim().split(/\s+/);
-  const lines=[];let line='';
-  for(const word of words){
-    const test=line?line+' '+word:word;
-    if(ctx.measureText(test).width<=maxWidth){line=test;continue}
-    if(line)lines.push(line);
-    line=word;
-    if(lines.length>=maxLines)break;
-  }
-  if(line&&lines.length<maxLines)lines.push(line);
-  const used=lines.join(' ');
-  if(used.length<String(text||'').trim().length){
-    let last=lines.length-1, s=lines[last]||'';
-    while(s&&ctx.measureText(s+'…').width>maxWidth)s=s.slice(0,-1);
-    lines[last]=s+'…';
-  }
-  return lines;
-}
-function drawExport(canvas,ctx){
-  const w=canvas.width,h=canvas.height;
-  ctx.fillStyle='#00ff00';ctx.fillRect(0,0,w,h);
-  const accent=$('accent').value,scale=Number($('scale').value)/100;
-  const expanded=$('island').classList.contains('expanded');
-  const baseW=w*.82,iw=baseW*scale;
-  const ih=(expanded?Math.max(250,h*.105):Math.max(190,h*.085))*scale;
-  const x=(w-iw)/2,y=(h-ih)/2;
-  ctx.save();ctx.shadowColor='#000';ctx.shadowBlur=42*scale;
-  ctx.fillStyle='#08090d';roundRect(ctx,x,y,iw,ih,Math.min(70*scale,ih/3));ctx.fill();
-  ctx.shadowBlur=0;ctx.strokeStyle='#292d35';ctx.lineWidth=5*scale;
-  roundRect(ctx,x,y,iw,ih,Math.min(70*scale,ih/3));ctx.stroke();
-  const pad=iw*.035,art=ih*.70,artX=x+pad,artY=y+(ih-art)/2;
-  const img=$('cover');
-  if(img.complete&&img.naturalWidth){
-    ctx.save();roundRect(ctx,artX,artY,art,art,art*.22);ctx.clip();ctx.drawImage(img,artX,artY,art,art);ctx.restore();
-  }else{
-    ctx.fillStyle='#26384d';roundRect(ctx,artX,artY,art,art,art*.22);ctx.fill();
-    ctx.fillStyle='#fff';ctx.font=`bold ${art*.52}px Arial`;ctx.fillText('♫',artX+art*.25,artY+art*.72);
-  }
-  const tx=artX+art+pad*.8,barW=iw*.15,textRight=x+iw-barW-pad*1.2;
-  const maxW=Math.max(50,textRight-tx);
-  ctx.textAlign='left';ctx.fillStyle='#fff';
-  const titleSize=Math.max(24,ih*(expanded?.19:.22));
-  ctx.font=`bold ${titleSize}px Arial`;
-  const lines=wrapLines(ctx,$('titleInput').value||'Название трека',maxW,3);
-  const lineH=titleSize*1.12;
-  const titleBlockH=lines.length*lineH;
-  const artist=$('artistInput').value||'Исполнитель';
-  const artistSize=Math.max(18,ih*.12);
-  ctx.font=`${artistSize}px Arial`;
-  const artistY=y+ih*.5+titleBlockH*.5+artistSize*.85;
-  const titleStartY=artistY-titleBlockH-artistSize*.45;
-  ctx.font=`bold ${titleSize}px Arial`;
-  lines.forEach((line,i)=>ctx.fillText(line,tx,titleStartY+i*lineH));
-  ctx.fillStyle='#aab1bd';ctx.font=`${artistSize}px Arial`;
-  ctx.fillText(artist.length>28?artist.slice(0,27)+'…':artist,tx,artistY);
-  const arr=new Uint8Array(mixAnalyser.frequencyBinCount);mixAnalyser.getByteFrequencyData(arr);
-  ctx.fillStyle=accent;const bx=x+iw-barW*.92,base=y+ih/2;
-  for(let i=0;i<8;i++){
-    const v=arr[i*8+3]/255,bh=(ih*.09+v*ih*.38);
-    roundRect(ctx,bx+i*(barW/8),base-bh/2,Math.max(4,barW*.075),bh,5*scale);ctx.fill();
-  }
-  ctx.restore();
-}
-$('record').onclick=async()=>{
-  setup();await audioCtx.resume();
-  if(audio.paused){try{await audio.play()}catch(e){status('Не удалось запустить аудио. Нажми «Прослушать» и повтори.');return}}
-  const width=Number($('resolution').value),height=Math.round(width*16/9),fps=Number($('fps').value);
-  const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
-  const ctx=canvas.getContext('2d',{alpha:false});
-  if(!canvas.captureStream||!window.MediaRecorder){status('Запись не поддерживается. Открой сайт в Chrome.');return}
-  const videoStream=canvas.captureStream(fps);
-  const combined=new MediaStream([...videoStream.getVideoTracks(),...mediaDest.stream.getAudioTracks()]);
-  const mime=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(t=>MediaRecorder.isTypeSupported(t));
-  if(!mime){status('Браузер не поддерживает запись WebM. Попробуй Chrome.');return}
-  recording=true;
-  const paint=()=>{if(!recording)return;drawExport(canvas,ctx);recordFrame=requestAnimationFrame(paint)};
-  paint();chunks=[];
-  try{recorder=new MediaRecorder(combined,{mimeType:mime,videoBitsPerSecond:width>=2160?24000000:10000000})}
-  catch(e){recording=false;cancelAnimationFrame(recordFrame);status('Телефон не смог запустить выбранное качество. Выбери 1080p и 30 FPS.');return}
-  recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
-  recorder.onstop=()=>{
-    recording=false;cancelAnimationFrame(recordFrame);
-    const blob=new Blob(chunks,{type:mime}),url=URL.createObjectURL(blob),a=document.createElement('a');
-    a.href=url;a.download='SONIQ_GREEN_SCREEN.webm';a.click();
-    setTimeout(()=>URL.revokeObjectURL(url),60000);
-    status(`Видео сохранено · ${width}×${height} · выбранные ${fps} FPS. Реальная частота зависит от устройства.`);
-    $('finish').disabled=true;$('record').disabled=false;$('stop').disabled=false;
-    videoStream.getTracks().forEach(t=>t.stop());
-  };
-  recorder.start(1000);$('record').disabled=true;$('finish').disabled=false;$('stop').disabled=true;
-  $('play').textContent='Ⅱ Запись идёт';
-  status(`Идёт запись ${width}×${height}, выбранные ${fps} FPS. Нажми «Сохранить видео», когда закончишь.`);
-};
-$('finish').onclick=()=>{
-  if(recorder&&recorder.state!=='inactive'){recorder.stop();audio.pause();$('play').textContent='▶ Прослушать'}
-};
+const audio=$('audio'), island=$('island'), bars=$('bars'), miniBars=$('miniBars');
+let audioURL=null, coverURL=null, audioCtx=null, analyser=null, source=null, recorder=null, chunks=[], expanded=true, raf=0;
+const ctx=bars.getContext('2d'), mctx=miniBars.getContext('2d');
+function fmt(s){if(!Number.isFinite(s))return '0:00';return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0')}
+function setText(){const t=$('titleInput').value.trim()||'Название трека', a=$('artistInput').value.trim()||'Исполнитель';$('track').textContent=t;$('artist').textContent=a;$('miniTrack').textContent=t;$('miniArtist').textContent=a;$('lyrics').textContent=$('lyricsInput').value.trim()||' '}
+['titleInput','artistInput','lyricsInput'].forEach(id=>$(id).addEventListener('input',setText));
+$('audioFile').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;if(audioURL)URL.revokeObjectURL(audioURL);audioURL=URL.createObjectURL(f);audio.src=audioURL;$('status').textContent='Трек загружен. Нажми воспроизведение.';if(!$('titleInput').value||$('titleInput').value==='Название трека')$('titleInput').value=f.name.replace(/\.[^.]+$/,'');setText();});
+$('imageFile').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;if(coverURL)URL.revokeObjectURL(coverURL);coverURL=URL.createObjectURL(f);$('cover').src=coverURL;$('miniCover').src=coverURL;});
+function setupAudio(){if(audioCtx)return;audioCtx=new(window.AudioContext||window.webkitAudioContext)();analyser=audioCtx.createAnalyser();analyser.fftSize=256;analyser.smoothingTimeConstant=.78;source=audioCtx.createMediaElementSource(audio);source.connect(analyser);analyser.connect(audioCtx.destination)}
+audio.addEventListener('play',async()=>{setupAudio();if(audioCtx.state==='suspended')await audioCtx.resume();draw()});
+audio.addEventListener('pause',()=>cancelAnimationFrame(raf));
+audio.addEventListener('timeupdate',()=>{$('current').textContent=fmt(audio.currentTime);$('duration').textContent=fmt(audio.duration);$('progressFill').style.width=(audio.duration?audio.currentTime/audio.duration*100:0)+'%'});
+$('play').onclick=()=>audio.paused?audio.play():audio.pause();
+$('back').onclick=()=>audio.currentTime=Math.max(0,audio.currentTime-10);
+$('forward').onclick=()=>audio.currentTime=Math.min(audio.duration||0,audio.currentTime+10);
+$('sound').onclick=()=>audio.muted=!audio.muted;
+$('like').onclick=e=>e.currentTarget.style.opacity=e.currentTarget.style.opacity==='0.45'?'1':'.45';
+$('toggleExpand').onclick=()=>{expanded=!expanded;island.classList.toggle('collapsed',!expanded)};
+function drawBars(c,canvas,count=18){c.clearRect(0,0,canvas.width,canvas.height);let data=new Uint8Array(analyser?analyser.frequencyBinCount:128);if(analyser)analyser.getByteFrequencyData(data);let gap=3,w=(canvas.width-gap*(count-1))/count;for(let i=0;i<count;i++){let v=analyser?data[Math.floor(i*data.length/count)]:0;let h=Math.max(3,(v/255)*(canvas.height*.88));c.fillStyle='#ff3948';c.beginPath();c.roundRect(i*(w+gap),canvas.height-h,w,h,3);c.fill()}}
+function draw(){drawBars(ctx,bars,13);drawBars(mctx,miniBars,10);raf=requestAnimationFrame(draw)}
+$('record').onclick=async()=>{if(!audio.src){$('status').textContent='Сначала загрузи MP3.';return}if(!window.MediaRecorder||!HTMLCanvasElement.prototype.captureStream){$('status').textContent='Этот браузер не поддерживает запись. Попробуй Chrome.';return}
+setupAudio();await audioCtx.resume();
+const out=document.createElement('canvas');out.width=1080;out.height=1920;const c=out.getContext('2d');const stream=out.captureStream(30);const audioStream=audioCtx.createMediaStreamDestination();analyser.connect(audioStream);audioStream.stream.getAudioTracks().forEach(t=>stream.addTrack(t));
+const render=()=>{c.fillStyle='#00ff00';c.fillRect(0,0,1080,1920);const x=48,y=78,w=984,h=expanded?405:100,r=82;c.save();c.shadowColor='#ff3548';c.shadowBlur=26;c.fillStyle='#050506';c.strokeStyle='#6b252c';c.lineWidth=5;c.beginPath();c.roundRect(x,y,w,h,r);c.fill();c.stroke();c.shadowBlur=0;
+const img=$('cover');if(img.complete){c.save();c.beginPath();c.arc(x+88,y+75,48,0,Math.PI*2);c.clip();c.drawImage(img,x+40,y+27,96,96);c.restore()}
+c.fillStyle='white';c.font='bold 39px Arial';let title=$('titleInput').value||'Название трека';c.save();c.beginPath();c.rect(x+155,y+20,600,65);c.clip();c.fillText(title,x+160,y+65);c.restore();c.fillStyle='#aaa';c.font='30px Arial';c.fillText($('artistInput').value||'Исполнитель',x+160,y+112);
+let d=new Uint8Array(analyser.frequencyBinCount);analyser.getByteFrequencyData(d);for(let i=0;i<15;i++){let bh=Math.max(8,d[i*3]/255*78);c.fillStyle='#ff3c4a';c.beginPath();c.roundRect(x+790+i*11,y+105-bh,6,bh,4);c.fill()}
+if(expanded){c.fillStyle='#eee';c.font='28px Arial';c.fillText(($('lyricsInput').value||'').slice(0,58),x+40,y+205);c.fillStyle='#555';c.fillRect(x+40,y+264,904,5);c.fillStyle='#ff414b';c.fillRect(x+40,y+264,904*(audio.duration?audio.currentTime/audio.duration:0),5);c.fillStyle='#aaa';c.font='22px Arial';c.fillText(fmt(audio.currentTime),x+40,y+302);c.fillText('-'+fmt((audio.duration||0)-audio.currentTime),x+850,y+302);c.fillStyle='#ff414b';c.font='bold 48px Arial';c.fillText('♥',x+45,y+370);c.fillStyle='white';c.font='bold 40px Arial';c.fillText('◀◀          Ⅱ          ▶▶',x+280,y+370);c.font='30px Arial';c.fillText('◖))',x+850,y+370)}
+c.restore();if(recorder&&recorder.state==='recording')requestAnimationFrame(render)};
+chunks=[];recorder=new MediaRecorder(stream,{mimeType:MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')?'video/webm;codecs=vp9,opus':'video/webm'});recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};recorder.onstop=()=>{const blob=new Blob(chunks,{type:'video/webm'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='SONIQ-ISLAND.webm';a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);$('status').textContent='Готово! Видео сохранено в загрузки.'};recorder.start(500);render();$('stopRecord').disabled=false;$('record').disabled=true;$('status').textContent='Идёт запись. Запусти или продолжи песню.';if(audio.paused)audio.play();};
+$('stopRecord').onclick=()=>{if(recorder&&recorder.state==='recording')recorder.stop();$('stopRecord').disabled=true;$('record').disabled=false};
+setText();

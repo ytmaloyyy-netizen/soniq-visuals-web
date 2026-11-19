@@ -3,55 +3,71 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#070b16">
-<title>SONIQ VISUALS — Chroma Export</title>
+<title>SONIQ ISLAND</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header><b>SONIQ <span>VISUALS</span></b><small>CHROMA KEY VIDEO MAKER</small></header>
+<header class="top">
+  <div class="brand">SONIQ <span>ISLAND</span></div>
+  <div class="hint">MUSIC VISUALIZER</div>
+</header>
+
 <main>
-<section class="layout">
-<div class="preview-column">
-<div class="preview-title">ПРЕДПРОСМОТР · 9:16</div>
-<div class="stage" id="stage">
-<div class="dynamic-island" id="island" role="button" tabindex="0" aria-label="Раскрыть островок">
-<img id="cover" alt="">
-<div class="track">
-<b id="title">Название трека</b>
-<small id="artist">Исполнитель</small>
-</div>
-<div class="bars" id="bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-</div>
-<div class="under-label">SONIQ VISUALS</div>
-</div>
-<p class="tip">Нажми на островок, чтобы раскрыть его. Зелёный фон удаляется через «Хромакей» в CapCut.</p>
-</div>
-<aside>
-<h1>Создать островок</h1>
-<p class="muted">Загрузи музыку и получи отдельное вертикальное видео с живой реакцией на звук.</p>
-<label class="upload">＋ Загрузить аудио<input id="audioFile" type="file" accept="audio/*"></label>
-<label class="upload secondary">▧ Загрузить обложку<input id="coverFile" type="file" accept="image/*"></label>
-<div class="field"><label for="titleInput">Название трека</label><input id="titleInput" placeholder="Название трека"></div>
-<div class="field"><label for="artistInput">Исполнитель</label><input id="artistInput" placeholder="Исполнитель"></div>
-<div class="field"><label for="accent">Цвет визуализатора</label><input id="accent" type="color" value="#ff426f"></div>
-<div class="field"><label for="scale">Размер островка</label><input id="scale" type="range" min="70" max="130" value="100"></div>
-<div class="field">
-<label for="resolution">Разрешение видео</label>
-<select id="resolution"><option value="1080">1080 × 1920 — стабильнее</option><option value="2160">4K · 2160 × 3840 — экспериментально</option></select>
-</div>
-<div class="field">
-<label for="fps">Частота кадров</label>
-<select id="fps"><option value="30">30 FPS — рекомендуется</option><option value="60">60 FPS</option><option value="90">90 FPS — экспериментально</option></select>
-</div>
-<div class="buttons"><button id="play" disabled>▶ Прослушать</button><button id="stop" class="secondary" disabled>■ Стоп</button></div>
-<button id="record" disabled>● Начать запись</button>
-<button id="finish" class="secondary" disabled>Сохранить видео</button>
-<p id="status">Ожидаю аудиофайл…</p>
-<p class="fine">Экспорт создаётся в WebM со звуком. 4K/90 FPS зависят от возможностей браузера и телефона; фактическая частота кадров может быть ниже выбранной. Для монтажа используй CapCut → Хромакей.</p>
-</aside>
-</section>
-<audio id="audio" crossorigin="anonymous"></audio>
-<script src="app.js"></script>
+  <section class="stage-wrap">
+    <div class="stage" id="stage">
+      <div class="island" id="island">
+        <div class="topline">
+          <img id="cover" class="cover" alt="Обложка" src="cover-default.svg">
+          <div class="meta">
+            <div class="track" id="track">Название трека</div>
+            <div class="artist" id="artist">Исполнитель</div>
+          </div>
+          <canvas id="bars" width="150" height="58" aria-label="Аудиоэквалайзер"></canvas>
+        </div>
+        <div class="lyrics" id="lyrics">Загрузи трек и создай свою атмосферу</div>
+        <div class="progress-row">
+          <span id="current">0:00</span>
+          <div class="progress"><div id="progressFill"></div></div>
+          <span id="duration">0:00</span>
+        </div>
+        <div class="controls">
+          <button id="like" title="Нравится">♥</button>
+          <button id="back" title="Назад">Ⅱ◀</button>
+          <button id="play" title="Пауза / воспроизведение">Ⅱ</button>
+          <button id="forward" title="Вперёд">▶Ⅱ</button>
+          <button id="sound" title="Звук">◖))</button>
+        </div>
+      </div>
+      <div class="mini-island" id="miniIsland">
+        <img id="miniCover" src="cover-default.svg" alt="">
+        <div class="mini-meta"><b id="miniTrack">Название трека</b><small id="miniArtist">Исполнитель</small></div>
+        <canvas id="miniBars" width="86" height="32"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h1>Твой музыкальный островок</h1>
+    <p>Загрузи песню и обложку. Островок будет реагировать на настоящий звук.</p>
+    <div class="fields">
+      <label class="upload">Загрузить MP3<input id="audioFile" type="file" accept="audio/*"></label>
+      <label class="upload secondary">Обложка<input id="imageFile" type="file" accept="image/*"></label>
+    </div>
+    <div class="fields">
+      <input id="titleInput" placeholder="Название трека" value="Название трека">
+      <input id="artistInput" placeholder="Исполнитель" value="Исполнитель">
+    </div>
+    <input id="lyricsInput" class="wide" placeholder="Строка песни (можно оставить пустой)">
+    <div class="actions">
+      <button id="toggleExpand" class="secondaryBtn">Свернуть / раскрыть</button>
+      <button id="record" class="recordBtn">● Записать видео</button>
+      <button id="stopRecord" class="secondaryBtn" disabled>Остановить</button>
+    </div>
+    <div class="status" id="status">Сначала загрузи аудиофайл. Для записи нажми «Записать видео».</div>
+    <audio id="audio" controls></audio>
+    <p class="note">Экспорт записывается в WebM. На Android доступность кодека и плавность зависят от браузера. Для CapCut можно использовать хромакей по цвету #00FF00.</p>
+  </section>
 </main>
+<script src="app.js"></script>
 </body>
 </html>
